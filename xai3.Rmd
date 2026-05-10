@@ -1,0 +1,314 @@
+---
+title: "Untitled"
+output: html_document
+date: "2026-05-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# ============================================
+# EJERCICIO 1 - PDP 1D: Predicción de bicis
+# ============================================
+
+# Paso 1: instalar librerías (solo la primera vez)
+# ============================================
+# EJERCICIO 1 - PDP 1D con librería pdp
+# ============================================
+
+
+# Cargar librerías
+library(randomForest)
+library(ggplot2)
+library(pdp)
+library(gridExtra)
+
+# Cargar datos
+bikes <- read.csv("day.csv")
+
+# Crear variable días desde 2011
+bikes$days_since_2011 <- as.numeric(
+  as.Date(bikes$dteday) - as.Date("2011-01-01")
+)
+
+# Variables del modelo
+features <- c(
+  "days_since_2011",
+  "temp",
+  "hum",
+  "windspeed",
+  "season",
+  "holiday",
+  "workingday",
+  "weathersit"
+)
+
+# Entrenar Random Forest
+set.seed(42)
+
+rf_model <- randomForest(
+  cnt ~ .,
+  data = bikes[, c(features, "cnt")],
+  ntree = 500
+)
+
+# ============================================
+# PDPs
+# ============================================
+
+pdp_days <- partial(
+  rf_model,
+  pred.var = "days_since_2011",
+  train = bikes
+)
+
+pdp_temp <- partial(
+  rf_model,
+  pred.var = "temp",
+  train = bikes
+)
+
+pdp_hum <- partial(
+  rf_model,
+  pred.var = "hum",
+  train = bikes
+)
+
+pdp_wind <- partial(
+  rf_model,
+  pred.var = "windspeed",
+  train = bikes
+)
+
+# ============================================
+# Gráficos
+# ============================================
+
+p1 <- autoplot(pdp_days) +
+  ggtitle("PDP - Days since 2011") +
+  xlab("Days since 2011") +
+  ylab("Predicted bike rentals") +
+  theme_minimal()
+
+p2 <- autoplot(pdp_temp) +
+  ggtitle("PDP - Temperature") +
+  xlab("Temperature") +
+  ylab("Predicted bike rentals") +
+  theme_minimal()
+
+p3 <- autoplot(pdp_hum) +
+  ggtitle("PDP - Humidity") +
+  xlab("Humidity") +
+  ylab("Predicted bike rentals") +
+  theme_minimal()
+
+p4 <- autoplot(pdp_wind) +
+  ggtitle("PDP - Wind speed") +
+  xlab("Wind speed") +
+  ylab("Predicted bike rentals") +
+  theme_minimal()
+
+# Mostrar todos juntos
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+The Partial Dependence Plots (PDPs) show how the Random Forest model learned the relationship between the selected variables and the predicted number of rented bikes.
+
+Days since 2011
+
+The PDP for days since 2011 shows a clear positive trend over time. At the beginning of the period, the predicted number of bike rentals is close to 3000 rentals, while later in the timeline the prediction increases above 5000 rentals. This indicates that the model learned a growth trend in bike usage over time. The increase may be related to a greater adoption of the bike rental system, improved infrastructure, or increased popularity of bike transportation. Towards the end of the period, the prediction decreases slightly, although it remains at a relatively high level.
+
+Temperature
+
+The PDP for temperature shows a strong positive relationship between temperature and bike rentals. When temperatures are low, the predicted number of rentals is also low. As temperature increases, the predicted bike counts rise significantly, reaching their maximum values at medium-high temperatures. This suggests that people are more likely to rent bikes when weather conditions are pleasant. At very high temperatures, the prediction stabilizes or decreases slightly, which may indicate that extremely hot weather is less comfortable for cycling.
+
+Humidity
+
+The PDP for humidity shows that humidity has a generally negative effect on bike rentals. For low and medium humidity values, the predicted number of rentals remains relatively stable. However, when humidity becomes high, especially above approximately 0.7, the predicted number of rentals decreases sharply. This indicates that high humidity conditions discourage bike usage, probably because they create uncomfortable weather conditions for users.
+
+Wind speed
+
+The PDP for wind speed shows a negative relationship between wind speed and bike rentals. For low wind speeds, the predicted number of rentals remains relatively high. As wind speed increases, the prediction gradually decreases. The strongest decline appears at higher wind speeds, where predicted rentals fall considerably. This suggests that strong wind conditions make cycling more difficult and therefore reduce the demand for bike rentals.
+
+Conclusion
+
+Overall, the model learned that temperature has the strongest positive influence on bike rentals, while humidity and wind speed have negative effects when their values become high. The variable days since 2011 captures an increasing trend in bike usage over time, showing that the popularity of the bike rental system grew during the analyzed period.
+```{r}
+# ============================================
+# EJERCICIO 2 - PDP 2D: Humedad y Temperatura
+# ============================================
+library(randomForest)
+library(ggplot2)
+library(pdp)
+library(dplyr)
+
+# Cargar datos
+bikes <- read.csv("day.csv")
+
+# Crear variable días desde 2011
+bikes$days_since_2011 <- as.numeric(
+  as.Date(bikes$dteday) - as.Date("2011-01-01")
+)
+
+# Variables del modelo
+features <- c(
+  "days_since_2011",
+  "temp",
+  "hum",
+  "windspeed",
+  "season",
+  "holiday",
+  "workingday",
+  "weathersit"
+)
+
+# Dataset del modelo
+datos_modelo <- bikes[, c(features, "cnt")]
+
+# Entrenar Random Forest
+set.seed(42)
+
+rf_model <- randomForest(
+  cnt ~ .,
+  data = datos_modelo,
+  ntree = 500
+)
+
+# Tomar muestra aleatoria para evitar que tarde demasiado
+set.seed(42)
+
+datos_muestra <- datos_modelo %>%
+  sample_n(min(300, nrow(datos_modelo)))
+
+# Crear PDP 2D con temperatura y humedad
+pdp_2d <- partial(
+  rf_model,
+  pred.var = c("temp", "hum"),
+  train = datos_muestra,
+  grid.resolution = 30
+)
+
+# Gráfico 2D con geom_tile
+grafico_2d <- ggplot(pdp_2d, aes(x = temp, y = hum, fill = yhat)) +
+  geom_tile(width = 0.02, height = 0.02) +
+  geom_point(
+    data = datos_muestra,
+    aes(x = temp, y = hum),
+    inherit.aes = FALSE,
+    alpha = 0.25,
+    size = 1
+  ) +
+  labs(
+    title = "PDP 2D - Temperatura y Humedad",
+    x = "Temperatura normalizada",
+    y = "Humedad normalizada",
+    fill = "Predicción de alquileres"
+  ) +
+  theme_minimal(base_size = 13)
+
+# Mostrar gráfico
+print(grafico_2d)
+```
+The 2D Partial Dependence Plot shows the joint effect of temperature and humidity on the predicted number of bike rentals.
+
+In general, the model predicts a higher number of bike rentals when the temperature is medium or high. The lightest areas of the plot appear around normalized temperature values between approximately 0.5 and 0.75. This indicates that warmer weather conditions are associated with a higher demand for bike rentals.
+
+Humidity also affects the prediction. When humidity is very high, the predicted number of rentals tends to be lower, especially when temperature is low or moderate. This suggests that humid conditions make cycling less attractive for users.
+
+The highest predicted rental values appear when temperature is relatively high and humidity is not extreme. In contrast, the lowest predicted values appear in colder areas, especially when temperature is low.
+
+The black points represent the real distribution of observations in the dataset. They show that most data points are concentrated in the central part of the plot, so the interpretation is more reliable in those areas.
+
+Overall, the Random Forest model learned that bike rentals increase with temperature, but very humid conditions can reduce the expected demand.
+
+
+```{r}
+# ============================================================
+# EJERCICIO 3 - PDP: Precio de casas (kc_house_data.csv)
+# ============================================================
+
+library(randomForest)
+library(ggplot2)
+library(gridExtra)
+library(pdp)
+library(scales)
+
+# ============================================================
+# 1. Cargar datos y seleccionar features del enunciado
+# ============================================================
+casas <- read.csv("kc_house_data.csv")
+
+df_casas <- casas[, c("bedrooms", "bathrooms", "sqft_living",
+                      "sqft_lot", "floors", "yr_built", "price")]
+
+# ============================================================
+# 2. Muestra aleatoria (el dataset tiene ~21.000 filas)
+# ============================================================
+set.seed(42)
+muestra_casas <- df_casas[sample(nrow(df_casas), 1000), ]
+
+# ============================================================
+# 3. Entrenar el Random Forest
+# ============================================================
+set.seed(42)
+rf_casas <- randomForest(price ~ ., data = muestra_casas, ntree = 500)
+print(rf_casas)
+
+# ============================================================
+# 4. Calcular PDPs con librería pdp
+# ============================================================
+pdp_bed   <- partial(rf_casas, pred.var = "bedrooms",    train = muestra_casas)
+pdp_bath  <- partial(rf_casas, pred.var = "bathrooms",   train = muestra_casas)
+pdp_sqft  <- partial(rf_casas, pred.var = "sqft_living", train = muestra_casas)
+pdp_floor <- partial(rf_casas, pred.var = "floors",      train = muestra_casas)
+
+# ============================================================
+# 5. Función para graficar
+# ============================================================
+graficar_pdp_casas <- function(pdp_data, var_name, titulo) {
+  ggplot(pdp_data, aes(x = .data[[var_name]], y = yhat)) +
+    geom_line(color = "darkorange", linewidth = 1.2) +
+    geom_rug(data = muestra_casas, aes(x = .data[[var_name]]),
+             inherit.aes = FALSE, alpha = 0.2, color = "gray40") +
+    scale_y_continuous(labels = comma) +
+    labs(title = titulo,
+         x = var_name,
+         y = "Predicted price (USD)") +
+    theme_minimal(base_size = 12) +
+    theme(plot.title = element_text(face = "bold"))
+}
+
+# ============================================================
+# 6. Generar los 4 gráficos juntos
+# ============================================================
+p_bed   <- graficar_pdp_casas(pdp_bed,   "bedrooms",    "Bedrooms")
+p_bath  <- graficar_pdp_casas(pdp_bath,  "bathrooms",   "Bathrooms")
+p_sqft  <- graficar_pdp_casas(pdp_sqft,  "sqft_living", "Sqft Living")
+p_floor <- graficar_pdp_casas(pdp_floor, "floors",      "Floors")
+
+grid.arrange(p_bed, p_bath, p_sqft, p_floor, ncol = 2)
+```
+The Partial Dependence Plots (PDPs) show how the Random Forest model learned the relationship between the selected variables and the predicted house price.
+
+Bedrooms
+
+The PDP for bedrooms shows a decreasing trend as the number of bedrooms increases. Houses with a very low number of bedrooms have the highest predicted prices, while the prediction decreases and stabilizes for houses with more bedrooms. This suggests that the number of bedrooms alone is not a strong indicator of higher house prices. In some cases, houses with many bedrooms may not necessarily be luxury properties, especially if the living space is limited.
+
+Bathrooms
+
+The PDP for bathrooms shows a strong positive relationship with house prices. As the number of bathrooms increases, the predicted price also increases significantly. The largest increase appears between approximately 3 and 4 bathrooms, where the predicted price rises sharply. This indicates that houses with more bathrooms are generally associated with larger or higher-quality properties.
+
+Sqft Living
+
+The PDP for sqft_living shows the strongest positive effect among all analyzed variables. As the living area increases, the predicted house price rises considerably. Small houses have much lower predicted prices, while larger houses with greater living space reach the highest predicted values. The relationship is clearly non-linear, with some intervals showing stronger increases than others. This suggests that living area is one of the most important variables for predicting house prices.
+
+Floors
+
+The PDP for floors shows a moderate influence on house prices. Houses with one floor and three floors tend to have higher predicted prices compared to houses with two floors. The lowest predicted values appear around two-floor houses. Although the effect exists, it is weaker than the influence of bathrooms or living area.
+
+Conclusion
+
+Overall, the model learned that sqft_living and bathrooms are the most influential variables for predicting house prices. Larger houses with more bathrooms tend to have substantially higher predicted prices. The number of bedrooms has a weaker and less direct effect, while the number of floors has only a moderate influence on the final prediction.
+
